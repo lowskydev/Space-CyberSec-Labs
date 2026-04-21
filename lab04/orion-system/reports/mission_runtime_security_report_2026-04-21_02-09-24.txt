@@ -1,0 +1,10 @@
+MISSION RUNTIME SECURITY REPORT
+Generated at: 2026-04-21_02-09-24
+Processed log files: 3
+Active processes: 389
+Unauthorized processes: 375
+High CPU processes: 1
+ERROR entries: 23
+Most unstable log: sat-002.log
+Top CPU process: yes
+Incident classification: CRITICAL
