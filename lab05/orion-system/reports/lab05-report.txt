@@ -1,0 +1,281 @@
+PR: <link>
+
+=== TASKS ===
+
+= TASK 1 =
+
+-- WITHOUT SIMULATION --
+
+netstat -an 2>/dev/null | grep -E "^(tcp|udp)"
+tcp4       0      0  10.129.7.142.62725     160.79.104.10.443      ESTABLISHED
+tcp4       0      0  10.129.7.142.62714     160.79.104.10.443      ESTABLISHED
+tcp4       0      0  10.129.7.142.62712     35.190.46.17.443       ESTABLISHED
+tcp6       0      0  2001:6d8:10:8100.62564 2600:1901:1:4be:.443   ESTABLISHED
+tcp4       0      0  10.129.7.142.61894     140.82.112.25.443      ESTABLISHED
+tcp4       0      0  *.61026                *.*                    LISTEN
+tcp4       0      0  127.0.0.1.63743        127.0.0.1.63712        ESTABLISHED
+tcp4       0      0  127.0.0.1.63712        127.0.0.1.63743        ESTABLISHED
+tcp4       0      0  *.5000                 *.*                    LISTEN
+tcp4       0      0  *.7000                 *.*                    LISTEN
+tcp46      0      0  *.49227                *.*                    LISTEN
+tcp4       0      0  *.22                   *.*                    LISTEN
+(UDP entries omitted for brevity)
+
+lsof -i -P -n 2>/dev/null | grep "(LISTEN)"
+rapportd    618 lowsky   11u  IPv4 ...  TCP *:61026 (LISTEN)
+ControlCe   691 lowsky    9u  IPv4 ...  TCP *:7000 (LISTEN)
+ControlCe   691 lowsky   11u  IPv4 ...  TCP *:5000 (LISTEN)
+Spotify   94969 lowsky   50u  IPv4 ...  TCP *:62866 (LISTEN)
+Spotify   94969 lowsky   82u  IPv4 ...  TCP 127.0.0.1:7768 (LISTEN)
+Spotify   94969 lowsky   99u  IPv4 ...  TCP *:57621 (LISTEN)
+
+lsof -i TCP -P -n 2>/dev/null | grep "(ESTABLISHED)"
+identitys   647 lowsky   50u  IPv6 ...  TCP [fe80:14::4d6e:8d2:d0f2:71f8]:1024->[fe80:14::9626:f740:b86:a088]:1024 (ESTABLISHED)
+Vivaldi   83675 lowsky   24u  IPv4 ...  TCP 10.129.7.142:61894->140.82.112.25:443 (ESTABLISHED)
+Tailscale 36868 lowsky    9u  IPv4 ...  TCP 127.0.0.1:63712->127.0.0.1:63743 (ESTABLISHED)
+2.1.116   49815 lowsky   11u  IPv4 ...  TCP 10.129.7.142:62712->35.190.46.17:443 (ESTABLISHED)
+Spotify   95006 lowsky   13u  IPv6 ...  TCP [2001:6d8:10:8100:dc76:2b80:46c2:9087]:61767->[2600:1901:1:4be::]:443 (ESTABLISHED)
+
+Selected socket analysis:
+Process: Vivaldi (PID 83675), socket type: ESTABLISHED connection
+Local: 10.129.7.142:61040
+Remote: [2a00:1450:4010:c02::bc]:5228
+Role: browser maintaining a persistent push connection to Google (FCM port 5228)
+
+-- WITH SIMULATION --
+
+netstat -an 2>/dev/null | grep -E "^(tcp|udp)"
+tcp4       0      0  127.0.0.1.9999         *.*                    LISTEN
+tcp4       0      0  127.0.0.1.6000         *.*                    LISTEN
+tcp4       0      0  10.129.7.142.62725     160.79.104.10.443      ESTABLISHED
+tcp4       0      0  127.0.0.1.63743        127.0.0.1.63712        ESTABLISHED
+tcp4       0      0  127.0.0.1.63712        127.0.0.1.63743        ESTABLISHED
+tcp4       0      0  *.61026                *.*                    LISTEN
+tcp4       0      0  *.5000                 *.*                    LISTEN
+tcp4       0      0  *.7000                 *.*                    LISTEN
+tcp4       0      0  *.22                   *.*                    LISTEN
+tcp4       0      0  10.129.7.142.62874     1.1.1.1.80             TIME_WAIT
+
+lsof -i -P -n 2>/dev/null | grep "(LISTEN)"
+rapportd    618 lowsky   11u  IPv4 ...  TCP *:61026 (LISTEN)
+ControlCe   691 lowsky    9u  IPv4 ...  TCP *:7000 (LISTEN)
+ControlCe   691 lowsky   11u  IPv4 ...  TCP *:5000 (LISTEN)
+nc        53482 lowsky    3u  IPv4 ...  TCP 127.0.0.1:6000 (LISTEN)
+nc        53546 lowsky    3u  IPv4 ...  TCP 127.0.0.1:9999 (LISTEN)
+Spotify   94969 lowsky   50u  IPv4 ...  TCP *:62866 (LISTEN)
+
+lsof -i TCP -P -n 2>/dev/null | grep "(ESTABLISHED)"
+identitys   647 lowsky   50u  IPv6 ...  TCP [fe80:14::4d6e:8d2:d0f2:71f8]:1024->[fe80:14::9626:f740:b86:a088]:1024 (ESTABLISHED)
+Vivaldi   83675 lowsky   24u  IPv4 ...  TCP 10.129.7.142:61894->140.82.112.25:443 (ESTABLISHED)
+Tailscale 36868 lowsky    9u  IPv4 ...  TCP 127.0.0.1:63712->127.0.0.1:63743 (ESTABLISHED)
+2.1.116   49815 lowsky   11u  IPv4 ...  TCP 10.129.7.142:62712->35.190.46.17:443 (ESTABLISHED)
+
+Differences:
+- Simulation adds listening services: nc on ports 6000 and 9999 (127.0.0.1)
+- Port 9999 is unexpected; nc is not a normal production service
+- Connection to 1.1.1.1:80 in TIME_WAIT state represents simulated suspicious outbound traffic
+- Without simulation: 6 TCP listeners; with simulation: 8 TCP listeners
+- nc processes are unexpected in a real system and would be treated as suspicious
+
+= TASK 2 =
+
+-- WITHOUT SIMULATION --
+
+nmap -n -p- 127.0.0.1
+Starting Nmap 7.99 ( https://nmap.org ) at 2026-04-28 10:21 +0200
+Nmap scan report for 127.0.0.1
+Host is up (0.000021s latency).
+Not shown: 65522 closed tcp ports (conn-refused)
+PORT      STATE    SERVICE
+22/tcp    open     ssh
+5000/tcp  open     upnp
+7000/tcp  open     afs3-fileserver
+7768/tcp  open     unknown
+41251/tcp filtered unknown
+49227/tcp open     unknown
+57621/tcp open     unknown
+61026/tcp open     unknown
+62866/tcp open     unknown
+63743/tcp open     unknown
+
+Nmap done: 1 IP address (1 host up) scanned in 2.11 seconds
+
+-- WITH SIMULATION --
+
+nmap -n -p- 127.0.0.1
+Starting Nmap 7.99 ( https://nmap.org ) at 2026-04-28 10:21 +0200
+Nmap scan report for 127.0.0.1
+Host is up (0.000017s latency).
+Not shown: 65522 closed tcp ports (conn-refused)
+PORT      STATE    SERVICE
+22/tcp    open     ssh
+5000/tcp  open     upnp
+6000/tcp  open     X11
+7000/tcp  open     afs3-fileserver
+7768/tcp  open     unknown
+9999/tcp  open     abyss
+41251/tcp filtered unknown
+49227/tcp open     unknown
+57621/tcp open     unknown
+61026/tcp open     unknown
+62866/tcp open     unknown
+63743/tcp open     unknown
+
+Nmap done: 1 IP address (1 host up) scanned in 2.04 seconds
+
+Expected ports: 1, 5000, 6000
+Unexpected externally visible ports (without simulation): 22, 7000, 7768, 49227, 57621, 61026, 62866, 63743
+Unexpected externally visible ports (with simulation): same set + 9999
+Ports 6000 (nc, 127.0.0.1) and 9999 (nc, 127.0.0.1) are only visible externally during simulation.
+This shows that loopback-only nc listeners are still reachable via loopback nmap scans.
+
+= TASK 3 =
+
+-- WITHOUT SIMULATION --
+
+python3 scripts/external_port_exposure_audit.py
+EXPOSED PORT: 22
+EXPOSED PORT: 7000
+EXPOSED PORT: 7768
+EXPOSED PORT: 49227
+EXPOSED PORT: 57621
+EXPOSED PORT: 61026
+EXPOSED PORT: 62866
+EXPOSED PORT: 63743
+TOTAL UNEXPECTED EXPOSED PORTS: 8
+
+-- WITH SIMULATION --
+
+python3 scripts/external_port_exposure_audit.py
+EXPOSED PORT: 22
+EXPOSED PORT: 7000
+EXPOSED PORT: 7768
+EXPOSED PORT: 9999
+EXPOSED PORT: 49227
+EXPOSED PORT: 57621
+EXPOSED PORT: 61026
+EXPOSED PORT: 62866
+EXPOSED PORT: 63743
+TOTAL UNEXPECTED EXPOSED PORTS: 9
+
+= TASK 4 =
+
+-- WITHOUT SIMULATION --
+
+python3 scripts/listening_service_audit.py
+LISTENING SERVICE: tcp 0.0.0.0:61026 rapportd 618
+LISTENING SERVICE: tcp 0.0.0.0:7000 ControlCe 691
+LISTENING SERVICE: tcp 0.0.0.0:5000 ControlCe 691
+LISTENING SERVICE: tcp 0.0.0.0:62866 Spotify 94969
+LISTENING SERVICE: tcp 127.0.0.1:7768 Spotify 94969
+LISTENING SERVICE: tcp 0.0.0.0:57621 Spotify 94969
+LISTENING SERVICE: udp 0.0.0.0:* identitys 647
+LISTENING SERVICE: udp 0.0.0.0:* sharingd 662
+LISTENING SERVICE: udp 0.0.0.0:57393 sharingd 662
+LISTENING SERVICE: udp 0.0.0.0:* eapolclie 44353
+LISTENING SERVICE: udp 0.0.0.0:60900 replicato 52948
+LISTENING SERVICE: udp 0.0.0.0:5353 Vivaldi 83675
+LISTENING SERVICE: udp 0.0.0.0:57621 Spotify 94969
+LISTENING SERVICE: udp 0.0.0.0:51195 Spotify 94969
+LISTENING SERVICE: udp 10.129.7.142:55513 Spotify 94969
+LISTENING SERVICE: udp 0.0.0.0:1900 Spotify 94969
+LISTENING SERVICE: udp 0.0.0.0:5353 Spotify 94969
+LISTENING SERVICE: udp 100.98.2.38:63113 Spotify 94969
+
+TOTAL LISTENING SERVICES: 18
+
+-- WITH SIMULATION --
+
+python3 scripts/listening_service_audit.py
+LISTENING SERVICE: tcp 0.0.0.0:61026 rapportd 618
+LISTENING SERVICE: tcp 0.0.0.0:7000 ControlCe 691
+LISTENING SERVICE: tcp 0.0.0.0:5000 ControlCe 691
+LISTENING SERVICE: tcp 127.0.0.1:6000 nc 53546
+LISTENING SERVICE: tcp 127.0.0.1:5000 nc 53619
+LISTENING SERVICE: tcp 0.0.0.0:62866 Spotify 94969
+LISTENING SERVICE: tcp 127.0.0.1:7768 Spotify 94969
+LISTENING SERVICE: tcp 0.0.0.0:57621 Spotify 94969
+LISTENING SERVICE: udp 0.0.0.0:* identitys 647
+LISTENING SERVICE: udp 0.0.0.0:* sharingd 662
+LISTENING SERVICE: udp 0.0.0.0:57393 sharingd 662
+LISTENING SERVICE: udp 0.0.0.0:* eapolclie 44353
+LISTENING SERVICE: udp 0.0.0.0:60900 replicato 52948
+LISTENING SERVICE: udp 0.0.0.0:5353 Vivaldi 83675
+LISTENING SERVICE: udp 0.0.0.0:57621 Spotify 94969
+LISTENING SERVICE: udp 0.0.0.0:51195 Spotify 94969
+LISTENING SERVICE: udp 0.0.0.0:1900 Spotify 94969
+LISTENING SERVICE: udp 0.0.0.0:5353 Spotify 94969
+
+TOTAL LISTENING SERVICES: 18
+
+= TASK 5 =
+
+-- WITHOUT SIMULATION --
+
+python3 scripts/established_connection_audit.py
+ESTABLISHED CONNECTION: [fe80:14::4d6e:8d2:d0f2:71f8]:1024 -> [fe80:14::9626:f740:b86:a088]:1024 identitys 647
+ESTABLISHED CONNECTION: [fe80:14::4d6e:8d2:d0f2:71f8]:1025 -> [fe80:14::9626:f740:b86:a088]:1026 identitys 647
+ESTABLISHED CONNECTION: [fe80:16::5a54:e4ef:3ad0:19dc]:1024 -> [fe80:16::c492:72c5:8f9f:af22]:1024 identitys 647
+ESTABLISHED CONNECTION: [fe80:16::5a54:e4ef:3ad0:19dc]:1026 -> [fe80:16::c492:72c5:8f9f:af22]:1025 identitys 647
+ESTABLISHED CONNECTION: 127.0.0.1:63712 -> 127.0.0.1:63743 Tailscale 36868
+ESTABLISHED CONNECTION: 10.129.7.142:62712 -> 35.190.46.17:443 2.1.116 49815
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62776 -> [2600:1901:0:3084::]:443 2.1.116 49815
+ESTABLISHED CONNECTION: 10.129.7.142:62714 -> 160.79.104.10:443 2.1.116 49815
+ESTABLISHED CONNECTION: 10.129.7.142:62725 -> 160.79.104.10:443 2.1.116 49815
+ESTABLISHED CONNECTION: 10.129.7.142:61894 -> 140.82.112.25:443 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:61015 -> 18.97.36.49:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:61040 -> [2a00:1450:4010:c02::bc]:5228 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:61123 -> 18.97.36.9:443 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:61184 -> 18.97.36.9:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62760 -> [2a00:1450:4025:807::88]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62775 -> [2a00:1450:4025:802::5d]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62762 -> [2a06:98c1:3121::9]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62761 -> [2a00:1450:400d:809::200a]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62763 -> [2001:4860:482b:7700::]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62764 -> [2a00:1450:4025:800::64]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:62765 -> 185.70.42.36:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62766 -> [2001:4860:482b:7700::]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62767 -> [2a00:1450:4025:807::88]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:62771 -> 31.209.137.8:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62772 -> [2a00:1450:4025:800::84]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62773 -> [2a04:4e42:41::396]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:61033 -> 34.158.1.133:443 Spotify 94969
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:61052 -> [2a00:1450:4010:c02::bc]:5228 Spotify 95006
+ESTABLISHED CONNECTION: 10.129.7.142:61009 -> 35.186.224.34:443 Spotify 95006
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:61039 -> [2a00:1450:4010:c02::bc]:5228 Spotify 95006
+
+TOTAL ESTABLISHED CONNECTIONS: 30
+
+-- WITH SIMULATION --
+
+python3 scripts/established_connection_audit.py
+ESTABLISHED CONNECTION: [fe80:14::4d6e:8d2:d0f2:71f8]:1024 -> [fe80:14::9626:f740:b86:a088]:1024 identitys 647
+ESTABLISHED CONNECTION: [fe80:14::4d6e:8d2:d0f2:71f8]:1025 -> [fe80:14::9626:f740:b86:a088]:1026 identitys 647
+ESTABLISHED CONNECTION: [fe80:16::5a54:e4ef:3ad0:19dc]:1024 -> [fe80:16::c492:72c5:8f9f:af22]:1024 identitys 647
+ESTABLISHED CONNECTION: [fe80:16::5a54:e4ef:3ad0:19dc]:1026 -> [fe80:16::c492:72c5:8f9f:af22]:1025 identitys 647
+ESTABLISHED CONNECTION: 127.0.0.1:63712 -> 127.0.0.1:63743 Tailscale 36868
+ESTABLISHED CONNECTION: 10.129.7.142:62712 -> 35.190.46.17:443 2.1.116 49815
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62776 -> [2600:1901:0:3084::]:443 2.1.116 49815
+ESTABLISHED CONNECTION: 10.129.7.142:62714 -> 160.79.104.10:443 2.1.116 49815
+ESTABLISHED CONNECTION: 10.129.7.142:62725 -> 160.79.104.10:443 2.1.116 49815
+ESTABLISHED CONNECTION: 10.129.7.142:61894 -> 140.82.112.25:443 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:61015 -> 18.97.36.49:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:61040 -> [2a00:1450:4010:c02::bc]:5228 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:61123 -> 18.97.36.9:443 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:61184 -> 18.97.36.9:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62760 -> [2a00:1450:4025:807::88]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62762 -> [2a06:98c1:3121::9]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62761 -> [2a00:1450:400d:809::200a]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62763 -> [2001:4860:482b:7700::]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62764 -> [2a00:1450:4025:800::64]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:62765 -> 185.70.42.36:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62766 -> [2001:4860:482b:7700::]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62767 -> [2a00:1450:4025:807::88]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:62771 -> 31.209.137.8:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62772 -> [2a00:1450:4025:800::84]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:62773 -> [2a04:4e42:41::396]:443 Vivaldi 83675
+ESTABLISHED CONNECTION: 10.129.7.142:61033 -> 34.158.1.133:443 Spotify 94969
+ESTABLISHED CONNECTION: [2001:6d8:10:8100:dc76:2b80:46c2:9087]:61052 -> [2a00:1450:4010:c02::bc]:5228 Spotify 95006
+ESTABLISHED CONNECTION: 10.129.7.142:61009 -> 35.186.224.34:443 Spotify 95006
+
+TOTAL ESTABLISHED CONNECTIONS: 28
